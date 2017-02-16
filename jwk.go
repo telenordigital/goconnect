@@ -1,0 +1,76 @@
+package goconnect
+
+import (
+	"encoding/json"
+	"errors"
+	"io/ioutil"
+	"log"
+	"net/http"
+	"sync"
+	"time"
+)
+
+// JWK is a single JSON Web Key
+type jwk struct {
+	KeyType      string `json:"kty"`
+	PublicKeyUse string `json:"use"`
+	Algorithm    string `json:"alg"`
+	KeyID        string `json:"kid"`
+	N            string `json:"n"`
+	E            string `json:"e"`
+}
+
+// JWKSet is the set of JSON Web Keys exposed by the Connect ID OAuth endpoint.
+type jwkSet struct {
+	Keys []jwk `json:"keys"`
+}
+
+// JWKCache caches the JWKs from the OAuth server. It will
+// retrieve new keys every 60 minutes.
+type jwkCache struct {
+	jwks    *jwkSet
+	mutex   *sync.Mutex
+	expires time.Time
+	url     string
+}
+
+// GetJWK returns the JWK from the OAuth server. The value is cached for
+// 60 minutes
+func (j *jwkCache) GetJWK() (*jwkSet, error) {
+	j.mutex.Lock()
+	defer j.mutex.Unlock()
+
+	if j.jwks == nil || time.Now().After(j.expires) {
+		set := jwkSet{}
+		resp, err := http.Get(j.url)
+		if err != nil {
+			return nil, err
+		}
+		if resp.StatusCode != http.StatusOK {
+			log.Printf("Expected 200 OK but got %d from Connect OAuth server (%s)", resp.StatusCode, j.url)
+			return nil, errors.New("Could not retrieve JWK from Connect servers")
+		}
+		buf, err := ioutil.ReadAll(resp.Body)
+		if err != nil {
+			log.Printf("Got error reading response body from %s: %v", j.url, err)
+			return nil, err
+		}
+
+		if err := json.Unmarshal(buf, &set); err != nil {
+			log.Printf("Got error unmarshaling response: %v", err)
+			return nil, err
+		}
+		j.jwks = &set
+		j.expires = time.Now().Add(60 * time.Minute)
+	}
+	return j.jwks, nil
+}
+
+// Create a new cache object
+func newJWKCache(url string) *jwkCache {
+	return &jwkCache{
+		url:   url,
+		mutex: &sync.Mutex{},
+		jwks:  nil,
+	}
+}
