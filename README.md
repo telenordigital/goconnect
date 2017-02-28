@@ -16,9 +16,9 @@ cut and paste the following commands to fetch the demo compile it and
 run it:
 
     go get github.com/telenordigital/goconnect-sample
-	cd $GOPATH/src/github.com/telenordigital/goconnect-sample
-	go build
-	./goconnect-sample
+    cd $GOPATH/src/github.com/telenordigital/goconnect-sample
+    go build
+    ./goconnect-sample
 
 Then point your browser at http://localhost:8080/
 
