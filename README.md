@@ -1,11 +1,26 @@
 # GoConnect - a library for Telenor Connect ID
 
 This library makes it easy to integrate your Go (web) service with the Telenor 
-Connect ID authorization and authentication service.
+Connect ID authorization and authentication service.  To install it
+simply do a:
+
+    go get github.com/telenordigital/goconnect
 
 # Where's the demo?
-Clone (or fork) the https://github.com/telenordigital/goconnect-sample/ 
+
+Clone (or fork) the https://github.com/telenordigital/goconnect-sample/
 repository to get a working demo with a development client included.
+
+If you are impatient and you want to just run the demo quickly just
+cut and paste the following commands to fetch the demo compile it and
+run it:
+
+    go get github.com/telenordigital/goconnect-sample
+    cd $GOPATH/src/github.com/telenordigital/goconnect-sample
+    go build
+    ./goconnect-sample
+
+Then point your browser at http://localhost:8080/
 
 # Where's the documentation?
 
@@ -14,8 +29,8 @@ repository to get a working demo with a development client included.
 ## Getting your own CONENCT ID client config
 You can get your own CONNECT client configuration by going to the 
 https://docs.telenordigital.com/ site and filling out the form there. Processing
- takes a business day or two. In the meanwhile you can use the client 
- configuration included in this sample.
+takes a business day or two. In the meanwhile you can use the client 
+configuration included in this sample.
 
 ## About the redirect URI parameters
 The redirect URI parameters that you use when logging in must be configured 
