@@ -253,7 +253,7 @@ func (t *GoConnect) startLogout(w http.ResponseWriter, r *http.Request) {
 func (t *GoConnect) logoutComplete(w http.ResponseWriter, r *http.Request) {
 	nonce := r.URL.Query().Get("state")
 	// Redirect to the default logout no matter what
-	defer http.Redirect(w, r, t.Config.LoginCompleteRedirect, http.StatusSeeOther)
+	defer http.Redirect(w, r, t.Config.LogoutCompleteRedirect, http.StatusSeeOther)
 	if nonce != "" {
 		if err := t.storage.CheckLogoutNonce(nonce); err != nil {
 			// Something is broken.

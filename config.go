@@ -32,7 +32,7 @@ const (
 	DefaultLoginRedirectURI = "http://localhost:8080/connect/oauth2callback"
 
 	// DefaultLogoutRedirectURI is the default redirect url for logout.
-	DefaultLogoutRedirectURI = "http://localhost:8080/connect/logoutcomplete"
+	DefaultLogoutRedirectURI = "http://localhost:8080/connect/logoutcallback"
 
 	// DefaultLoginCallback is the name of the endpoint that the CONNECT ID
 	// OAuth server redirects to when a login roundtrip is completed
