@@ -60,7 +60,11 @@ hesitate to mail us.
 * `<path>/oauth2callback` -- OAuth callback
 * `<path>/logout` -- start logout roundtrip 
 * `<path>/logoutcallback` -- start logout roundtrip 
-* `<path>/profile` -- Info callback
+
+You can add a session endpoint that shows the logged in user's properties by
+adding this to your code:
+
+    http.HandleFunc("/connect/profile", connect.SessionProfile)
 
 ## Demo client setup
     Client ID:   telenordigital-connectexample-web
