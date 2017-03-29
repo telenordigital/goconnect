@@ -206,8 +206,15 @@ func (t *GoConnect) isAuthorized(w http.ResponseWriter, r *http.Request) (bool, 
 	return true, session
 }
 
-// Show session info (if there is one)
-func (t *GoConnect) showSessionInfo(w http.ResponseWriter, r *http.Request) {
+// SessionProfile is a premade session endpoint that you can use to serve the
+// profile information to the end user. Since this resource might be used
+// by JavaScript clients it would potentially need CORS headers and a matching
+// OPTIONS header but this might introduce security issues. Add the header
+// to the default mux by using the following snippet:
+//
+//     http.HandleFunc("/connect/profile", connect.SessionProfile)
+//
+func (t *GoConnect) SessionProfile(w http.ResponseWriter, r *http.Request) {
 	auth, session := t.isAuthorized(w, r)
 	if !auth {
 		return
@@ -282,10 +289,6 @@ func (c *connectHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	if strings.HasSuffix(r.URL.Path, c.connect.Config.LoginCallback) {
 		c.connect.loginComplete(w, r)
-		return
-	}
-	if strings.HasSuffix(r.URL.Path, c.connect.Config.ProfileEndpoint) {
-		c.connect.showSessionInfo(w, r)
 		return
 	}
 	if strings.HasSuffix(r.URL.Path, c.connect.Config.LogoutInit) {
