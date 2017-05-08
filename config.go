@@ -70,6 +70,7 @@ type ClientConfig struct {
 	LoginInit              string // Name for endpoint that starts a login roundtrip
 	LogoutInit             string // Name for endpoint that starts a logout roundtrip
 	ProfileEndpoint        string // Name for session profile information endpoint
+	UseSecureCookie        bool   // Secure flag for cookie
 }
 
 // NewDefaultConfig creates a configuration with default values prepopulated. If the
@@ -109,6 +110,7 @@ func NewDefaultConfig(overrides ClientConfig) ClientConfig {
 	if ret.ProfileEndpoint == "" {
 		ret.ProfileEndpoint = DefaultProfileEndpoint
 	}
+
 	return ret
 }
 
