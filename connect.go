@@ -75,8 +75,15 @@ func (t *GoConnect) startLogin(w http.ResponseWriter, r *http.Request) {
 	q.Set("redirect_uri", t.Config.LoginRedirectURI)
 	q.Set("state", loginToken)
 	newURL.RawQuery = q.Encode()
+
 	// Remove any old session cookie before starting the roundtrip.
-	http.SetCookie(w, &http.Cookie{Name: connectIDCookieName, MaxAge: -1, HttpOnly: true, Path: "/"})
+	http.SetCookie(w, &http.Cookie{
+		Name:     connectIDCookieName,
+		MaxAge:   -1,
+		HttpOnly: true,
+		Secure:   t.Config.UseSecureCookie,
+		Path:     "/",
+	})
 
 	http.Redirect(w, r, newURL.String(), http.StatusSeeOther)
 }
