@@ -1,4 +1,6 @@
 # GoConnect - a library for Telenor Connect ID
+[![GoDoc](https://godoc.org/github.com/telenordigital/goconnect?status.svg)](https://godoc.org/github.com/telenordigital/goconnect)
+[![Build Status](https://travis-ci.org/telenordigital/goconnect.svg?branch=master)](https://travis-ci.org/telenordigital/goconnect)
 
 This library makes it easy to integrate your Go (web) service with the Telenor 
 Connect ID authorization and authentication service.  To install it
@@ -22,9 +24,7 @@ run it:
 
 Then point your browser at http://localhost:8080/
 
-# Where's the documentation?
 
-[![GoDoc](https://godoc.org/github.com/telenordigital/goconnect?status.svg)](https://godoc.org/github.com/telenordigital/goconnect)
 
 ## Getting your own CONENCT ID client config
 You can get your own CONNECT client configuration by going to the 
