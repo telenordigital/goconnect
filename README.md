@@ -70,7 +70,7 @@ adding this to your code:
 
 ## Demo client setup
     Client ID:   telenordigital-connectexample-web
-    RedirectURI: http://localhost;8080/oauth2callback (login complete)
+    RedirectURI: http://localhost:8080/oauth2callback (login complete)
                  http://localhost:8080/logoutcallback (logout complete)
 
     Auth init: https://connect.telenordigital.com/oauth/authorize
