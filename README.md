@@ -28,7 +28,7 @@ Then point your browser at http://localhost:8080/
 
 
 
-## Getting your own CONENCT ID client config
+## Getting your own CONNECT ID client config
 You can get your own CONNECT client configuration by going to the 
 https://docs.telenordigital.com/ site and filling out the form there. Processing
 takes a business day or two. In the meanwhile you can use the client 
