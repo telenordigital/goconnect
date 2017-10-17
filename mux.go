@@ -43,9 +43,7 @@ type authHandler struct {
 
 func (a *authHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodOptions {
-		// Pass on to existing handler but include empty session object
-		sessionContext := context.WithValue(r.Context(), SessionContext, Session{})
-		a.existingHandler.ServeHTTP(w, r.WithContext(sessionContext))
+		a.existingHandler.ServeHTTP(w, r)
 		return
 	}
 	auth, session := a.connect.isAuthorized(w, r)
