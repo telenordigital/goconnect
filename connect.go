@@ -208,16 +208,16 @@ func (t *GoConnect) loginComplete(w http.ResponseWriter, r *http.Request) {
 }
 
 // Check if there is a session. Set error and return otherwise
-func (t *GoConnect) isAuthorized(w http.ResponseWriter, r *http.Request) (bool, *Session) {
+func (t *GoConnect) isAuthorized(w http.ResponseWriter, r *http.Request) (bool, Session) {
 	cookie, err := r.Cookie(connectIDCookieName)
 	if cookie == nil || err == http.ErrNoCookie {
 		http.Error(w, "You are not authorized to view this page. Try logging in again.", http.StatusUnauthorized)
-		return false, nil
+		return false, Session{}
 	}
 	session, err := t.storage.GetSession(cookie.Value)
 	if err == errorNoSession {
 		http.Error(w, "You are not authorized to view this page. Try logging in again.", http.StatusUnauthorized)
-		return false, nil
+		return false, Session{}
 	}
 
 	return true, session

@@ -68,10 +68,10 @@ type Storage interface {
 
 	// PutSession creates a new session identifier and stores
 	// the information in a session structure
-	PutSession(session *Session) error
+	PutSession(session Session) error
 
 	// GetSession returns the session associated with the session ID.
-	GetSession(sessionid string) (*Session, error)
+	GetSession(sessionid string) (Session, error)
 
 	// DeleteSession removes the session
 	DeleteSession(sessionid string)
@@ -85,7 +85,7 @@ type Storage interface {
 type memoryStorage struct {
 	mutex    *sync.Mutex
 	nonces   map[string]time.Time
-	sessions map[string]*Session
+	sessions map[string]Session
 }
 
 // NewMemoryStorage creates a new memory-backed storage implementation. This implementation
@@ -97,7 +97,7 @@ func NewMemoryStorage() Storage {
 	storage := &memoryStorage{
 		mutex:    &sync.Mutex{},
 		nonces:   make(map[string]time.Time),
-		sessions: make(map[string]*Session),
+		sessions: make(map[string]Session),
 	}
 	go storage.sessionChecker()
 	return storage
@@ -164,11 +164,11 @@ type Session struct {
 }
 
 // newSession creates a new session
-func newSession(jwt jwt, accessToken string, refreshToken string, expires int) *Session {
+func newSession(jwt jwt, accessToken string, refreshToken string, expires int) Session {
 	randomBytes := make([]byte, 64)
 	rand.Read(randomBytes)
 	newSessionID := hex.EncodeToString(randomBytes)
-	return &Session{
+	return Session{
 		id:            newSessionID,
 		UserID:        jwt.Claims.ID,
 		Name:          jwt.Claims.Name,
@@ -182,22 +182,22 @@ func newSession(jwt jwt, accessToken string, refreshToken string, expires int) *
 		expires:       time.Now().Add(time.Duration(expires) * time.Second).Unix(),
 	}
 }
-func (m *memoryStorage) PutSession(session *Session) error {
+func (m *memoryStorage) PutSession(session Session) error {
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
 	m.sessions[session.id] = session
 	return nil
 }
 
-func (m *memoryStorage) GetSession(sessionID string) (*Session, error) {
+func (m *memoryStorage) GetSession(sessionID string) (Session, error) {
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
 	sess, exists := m.sessions[sessionID]
 	if !exists {
-		return nil, errorNoSession
+		return Session{}, errorNoSession
 	}
 	if sess.expires < time.Now().Unix() {
-		return nil, errorNoSession
+		return Session{}, errorNoSession
 	}
 	return sess, nil
 }
@@ -232,7 +232,7 @@ func (m *memoryStorage) sessionChecker() {
 }
 
 // Refresh the access token for a session.
-func (m *memoryStorage) refreshAccessToken(config ClientConfig, session *Session) {
+func (m *memoryStorage) refreshAccessToken(config ClientConfig, session Session) {
 	params := url.Values{}
 	params.Set("grant_type", "refresh_token")
 	params.Set("refresh_token", session.refreshToken)
@@ -275,7 +275,7 @@ func (m *memoryStorage) refreshAccessToken(config ClientConfig, session *Session
 		Phone:         session.Phone,
 		VerifiedPhone: session.VerifiedPhone,
 	}
-	m.sessions[updatedSession.id] = &updatedSession
+	m.sessions[updatedSession.id] = updatedSession
 }
 
 func (m *memoryStorage) RefreshTokens(config ClientConfig, lookAhead time.Duration) {
