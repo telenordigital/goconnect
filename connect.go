@@ -21,7 +21,6 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"log"
 	"net/http"
 	"net/url"
@@ -60,7 +59,7 @@ func NewConnectID(config ClientConfig) *GoConnect {
 func (t *GoConnect) tokenRefresher() {
 	const sleepTime = time.Second * 30
 	for {
-		<-time.After(sleepTime)
+		time.Sleep(sleepTime)
 		t.storage.RefreshTokens(t.Config, sleepTime)
 	}
 }
@@ -85,7 +84,7 @@ func (t *GoConnect) startLogin(w http.ResponseWriter, r *http.Request) {
 	q := newURL.Query()
 	q.Set("response_type", "code")
 	q.Set("client_id", t.Config.ClientID)
-	q.Set("scope", DefaultScopes) // "openid profile email phone telenordigital.loracore")
+	q.Set("scope", DefaultScopes)
 	q.Set("acr_values", "2")
 	q.Set("redirect_uri", t.Config.LoginRedirectURI)
 	q.Set("state", loginToken)
@@ -141,13 +140,9 @@ func (t *GoConnect) getTokens(code string) (tokenResponse, error) {
 	if resp.StatusCode != http.StatusOK {
 		return nothing, fmt.Errorf("Could not convert tokens. Expected 200 OK from OAuth server but got %d", resp.StatusCode)
 	}
-	buf, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		return nothing, fmt.Errorf("Could not read body from response: %v", err)
-	}
-	tokens := tokenResponse{}
-	if err := json.Unmarshal(buf, &tokens); err != nil {
-		return nothing, fmt.Errorf("Could not unmarshal response: %v", err)
+	var tokens tokenResponse
+	if err := json.NewDecoder(resp.Body).Decode(&tokens); err != nil {
+		return nothing, fmt.Errorf("Could not decode response: %v", err)
 	}
 	return tokens, nil
 }
@@ -241,16 +236,12 @@ func (t *GoConnect) SessionProfile(w http.ResponseWriter, r *http.Request) {
 	if !auth {
 		return
 	}
-	// Invariant: OK - session is found. Write information
-	bytes, err := json.MarshalIndent(session, "", "  ")
-	if err != nil {
-		log.Printf("Got error converting session to JSON: %v", err)
+	if err := json.NewEncoder(w).Encode(session); err != nil {
+		log.Printf("Got error encoding session to JSON: %v", err)
 		http.Error(w, "Session read error", http.StatusInternalServerError)
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	w.Write(bytes)
 }
 
 // Start logout roundtrip
@@ -325,15 +316,15 @@ func (c *connectHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, c.connect.Config.LogoutCompleteRedirect, http.StatusSeeOther)
 }
 
-// Handler returns a http.Handler for the callback endpoint. This is a set of endpoints that
-// the browser is redirected to from the Connect ID OAuth server. The handler will respond
-// on the following endpoints:
-// <ul>
-// <li> <endpoint>/login to start a login roundtrip towards the OAuth server
-// <li> <endpoint>/complete for the OAuth callback
-// <li> <endpoint>/info for session information
-// <li> <endpoint>/logout to log out the currently logged in user
-// </ul>
+// Handler returns a http.Handler that will respond on the following endpoints:
+//
+//   Config.LoginInit to start a login roundtrip towards the OAuth server
+//   Config.LoginCallback for the OAuth callback when login is complete
+//   Config.LogoutInit to log out the currently logged in user
+//   Config.LogoutCallback for the OAuth callback when logout is complete
+//
+// The Init endpoints are the ones you navigate to to initiate the action.
+// The Callback endpoints are redirected to from the OAuth server when it is complete.
 func (t *GoConnect) Handler() http.Handler {
 	return &connectHandler{connect: t}
 }

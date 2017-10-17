@@ -18,7 +18,6 @@ package goconnect
 import (
 	"encoding/json"
 	"errors"
-	"io/ioutil"
 	"log"
 	"net/http"
 	"sync"
@@ -65,14 +64,8 @@ func (j *jwkCache) GetJWK() (*jwkSet, error) {
 			log.Printf("Expected 200 OK but got %d from Connect OAuth server (%s)", resp.StatusCode, j.url)
 			return nil, errors.New("Could not retrieve JWK from Connect servers")
 		}
-		buf, err := ioutil.ReadAll(resp.Body)
-		if err != nil {
-			log.Printf("Got error reading response body from %s: %v", j.url, err)
-			return nil, err
-		}
-
-		if err := json.Unmarshal(buf, &set); err != nil {
-			log.Printf("Got error unmarshaling response: %v", err)
+		if err := json.NewDecoder(resp.Body).Decode(&set); err != nil {
+			log.Printf("Got error decoding response: %v", err)
 			return nil, err
 		}
 		j.jwks = &set
