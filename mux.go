@@ -33,20 +33,7 @@ const (
 // existing http.HandlerFunc will be called as normal. The session object is
 // passed along in the request's Context object.
 func (t *GoConnect) NewAuthHandlerFunc(existingFunc http.HandlerFunc) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		if r.Method == http.MethodOptions {
-			// Pass on the request and use an empty session object.
-			sessionContext := context.WithValue(r.Context(), SessionContext, Session{})
-			existingFunc(w, r.WithContext(sessionContext))
-			return
-		}
-		auth, session := t.isAuthorized(w, r)
-		if !auth {
-			return
-		}
-		sessionContext := context.WithValue(r.Context(), SessionContext, session)
-		existingFunc(w, r.WithContext(sessionContext))
-	}
+	return t.NewAuthHandler(existingFunc).ServeHTTP
 }
 
 type authHandler struct {
