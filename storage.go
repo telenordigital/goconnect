@@ -21,7 +21,6 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
-	"io/ioutil"
 	"log"
 	"net/http"
 	"net/url"
@@ -228,7 +227,7 @@ func (m *memoryStorage) sessionChecker() {
 			}
 		}
 		m.mutex.Unlock()
-		<-time.After(sessionCheckInterval * time.Second)
+		time.Sleep(sessionCheckInterval * time.Second)
 	}
 }
 
@@ -254,16 +253,9 @@ func (m *memoryStorage) refreshAccessToken(config ClientConfig, session *Session
 		log.Printf("Got error doing request for session %s: (status=%d) %v", session.id, resp.StatusCode, err)
 		return
 	}
-	// Invariant: Request is OK, read body of response
-	buf, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		log.Printf("Got error reading response body when refreshing session %s: %v", session.id, err)
-		return
-	}
-	// Invariant: Body is read, response OK, unmarshal it into struct
-	tokens := tokenResponse{}
-	if err := json.Unmarshal(buf, &tokens); err != nil {
-		log.Printf("Got error unmarshaling response body when refreshing session %s: %v", session.id, err)
+	var tokens tokenResponse
+	if err := json.NewDecoder(resp.Body).Decode(&tokens); err != nil {
+		log.Printf("Got error decoding response body when refreshing session %s: %v", session.id, err)
 		return
 	}
 
