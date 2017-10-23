@@ -9,11 +9,11 @@ Creating a new client
 Start by creating a new client configuration and Connect client:
 
     config := connect.NewDefaultConfig(ClientConfig{
-        Host:                   connect.StagingHost,
-        ClientID:               username,
-        Password:               password,
-        LoginCompleteRedirect:  "/main.html",
-        LogoutCompleteRedirect: "/",
+        Host:                      connect.StagingHost,
+        ClientID:                  username,
+        Password:                  password,
+        LoginCompleteRedirectURI:  "/main.html",
+        LogoutCompleteRedirectURI: "/",
     })
 
     connectid := connect.NewConnectID(config)

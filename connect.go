@@ -147,7 +147,7 @@ func (t *GoConnect) getTokens(code string) (tokenResponse, error) {
 	return tokens, nil
 }
 
-// Callback from OAuth server when login is completed
+// Handle the redirect from the OAuth server when login is complete.
 func (t *GoConnect) loginComplete(w http.ResponseWriter, r *http.Request) {
 	// Login is complete - check that code matches the state parameter sent earlier. States
 	// are kept for N hours? Mismatch => error page saying "try again"
@@ -165,7 +165,7 @@ func (t *GoConnect) loginComplete(w http.ResponseWriter, r *http.Request) {
 	if errcode != "" {
 		// There's an error message. Just redirect back to the logout page.
 		log.Printf("Got error from OAuth server: %s - %s", errcode, r.URL.Query().Get("error_description"))
-		http.Redirect(w, r, t.Config.LogoutCompleteRedirect, http.StatusSeeOther)
+		http.Redirect(w, r, t.Config.LogoutCompleteRedirectURI, http.StatusSeeOther)
 		return
 	}
 
@@ -204,7 +204,7 @@ func (t *GoConnect) loginComplete(w http.ResponseWriter, r *http.Request) {
 	}
 	http.SetCookie(w, cookie)
 
-	http.Redirect(w, r, t.Config.LoginCompleteRedirect, http.StatusSeeOther)
+	http.Redirect(w, r, t.Config.LoginCompleteRedirectURI, http.StatusSeeOther)
 }
 
 // Check if there is a session. Set error and return otherwise
@@ -269,11 +269,11 @@ func (t *GoConnect) startLogout(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, newURL.String(), http.StatusSeeOther)
 }
 
-// This is a callback from the OAuth server
+// Handle the redirect from the OAuth server when the logout is complete.
 func (t *GoConnect) logoutComplete(w http.ResponseWriter, r *http.Request) {
 	nonce := r.URL.Query().Get("state")
 	// Redirect to the default logout no matter what
-	defer http.Redirect(w, r, t.Config.LogoutCompleteRedirect, http.StatusSeeOther)
+	defer http.Redirect(w, r, t.Config.LogoutCompleteRedirectURI, http.StatusSeeOther)
 	if nonce != "" {
 		if err := t.storage.CheckLogoutNonce(nonce); err != nil {
 			// Something is broken.
@@ -300,7 +300,7 @@ func (c *connectHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		c.connect.startLogin(w, r)
 		return
 	}
-	if strings.HasSuffix(r.URL.Path, c.connect.Config.LoginCallback) {
+	if strings.HasSuffix(r.URL.Path, c.connect.Config.LoginRedirect) {
 		c.connect.loginComplete(w, r)
 		return
 	}
@@ -308,23 +308,23 @@ func (c *connectHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		c.connect.startLogout(w, r)
 		return
 	}
-	if strings.HasSuffix(r.URL.Path, c.connect.Config.LogoutCallback) {
+	if strings.HasSuffix(r.URL.Path, c.connect.Config.LogoutRedirect) {
 		c.connect.logoutComplete(w, r)
 		return
 	}
 	log.Printf("Got auth request to %s but I don't know how to handle it.", r.URL.Path)
-	http.Redirect(w, r, c.connect.Config.LogoutCompleteRedirect, http.StatusSeeOther)
+	http.Redirect(w, r, c.connect.Config.LogoutCompleteRedirectURI, http.StatusSeeOther)
 }
 
 // Handler returns a http.Handler that will respond on the following endpoints:
 //
 //   Config.LoginInit to start a login roundtrip towards the OAuth server
-//   Config.LoginCallback for the OAuth callback when login is complete
-//   Config.LogoutInit to log out the currently logged in user
-//   Config.LogoutCallback for the OAuth callback when logout is complete
+//   Config.LoginRedirect for the OAuth redirect when login is complete
+//   Config.LogoutInit to start a logout roundtrip towards the OAuth server
+//   Config.LogoutRedirect for the OAuth redirect when logout is complete
 //
 // The Init endpoints are the ones you navigate to to initiate the action.
-// The Callback endpoints are redirected to from the OAuth server when it is complete.
+// The Redirect endpoints are redirected to from the OAuth server when it is complete.
 func (t *GoConnect) Handler() http.Handler {
 	return &connectHandler{connect: t}
 }
