@@ -19,15 +19,15 @@ import "fmt"
 
 func ExampleNewDefaultConfig() {
 	config := NewDefaultConfig(ClientConfig{
-		Host:                   StagingHost,
-		ClientID:               "client-id",
-		Password:               "client-secret",
-		LoginCompleteRedirect:  "/main.html",
-		LogoutCompleteRedirect: "/",
+		Host:                      StagingHost,
+		ClientID:                  "client-id",
+		Password:                  "client-secret",
+		LoginCompleteRedirectURI:  "/main.html",
+		LogoutCompleteRedirectURI: "/",
 	})
 
-	fmt.Println(config.LoginCompleteRedirect)
-	fmt.Println(config.LogoutCompleteRedirect)
+	fmt.Println(config.LoginCompleteRedirectURI)
+	fmt.Println(config.LogoutCompleteRedirectURI)
 	// Output:
 	// /main.html
 	// /
