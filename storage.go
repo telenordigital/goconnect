@@ -249,8 +249,12 @@ func (m *memoryStorage) refreshAccessToken(config ClientConfig, session Session)
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	req.Header.Set("Content-Length", strconv.Itoa(len(formData)))
 	resp, err := http.DefaultClient.Do(req)
-	if err != nil || resp.StatusCode != http.StatusOK {
-		log.Printf("Got error doing request for session %s: (status=%d) %v", session.id, resp.StatusCode, err)
+	if err != nil {
+		log.Printf("Got error doing request for session %s: %v", session.id, err)
+		return
+	}
+	if resp.StatusCode != http.StatusOK {
+		log.Printf("Got status %d doing request for session %s.", resp.StatusCode, session.id)
 		return
 	}
 	var tokens tokenResponse
