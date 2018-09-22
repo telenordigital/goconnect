@@ -56,11 +56,77 @@ func NewConnectID(config ClientConfig) *GoConnect {
 	return client
 }
 
+func refreshAccessToknes(storage Storage, config ClientConfig, session Session) {
+	params := url.Values{}
+	params.Set("grant_type", "refresh_token")
+	params.Set("refresh_token", session.refreshToken)
+	params.Set("client_id", config.ClientID)
+	formData := params.Encode()
+
+	refreshURL := buildConnectURL(config, connectTokenPath)
+	req, err := http.NewRequest("POST", refreshURL.String(), bytes.NewBufferString(formData))
+	if err != nil {
+		log.Printf("Got error creating refresh request for session %s. Won't refresh access token: %v", session.id, err)
+		return
+	}
+	req.SetBasicAuth(config.ClientID, config.Password)
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.Header.Set("Content-Length", strconv.Itoa(len(formData)))
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		log.Printf("Got error doing request for session %s: %v", session.id, err)
+		return
+	}
+	if resp.StatusCode != http.StatusOK {
+		log.Printf("Got status %d doing request for session %s.", resp.StatusCode, session.id)
+		return
+	}
+	var tokens tokenResponse
+	if err := json.NewDecoder(resp.Body).Decode(&tokens); err != nil {
+		log.Printf("Got error decoding response body when refreshing session %s: %v", session.id, err)
+		return
+	}
+
+	// Invariant: Response OK and read. Update session
+	updatedSession := Session{
+		id:            session.id,
+		accessToken:   tokens.AccessToken,
+		refreshToken:  tokens.RefreshToken,
+		expires:       time.Now().Add(time.Duration(tokens.AccessTokenExpires) * time.Second).Unix(),
+		UserID:        session.UserID,
+		Name:          session.Name,
+		Locale:        session.Locale,
+		Email:         session.Email,
+		VerifiedEmail: session.VerifiedEmail,
+		Phone:         session.Phone,
+		VerifiedPhone: session.VerifiedPhone,
+	}
+	if err := storage.UpdateSession(updatedSession); err != nil {
+		log.Printf("Unable to update session %v: %v", updatedSession.id, err)
+	}
+}
+
+func refreshTokens(storage Storage, config ClientConfig, lookAhead time.Duration) {
+	list, err := storage.ListSessions()
+	if err != nil {
+		log.Printf("Unable to list sessions: %v. Sessions won't be updated.", err)
+		return
+	}
+	for _, session := range list {
+		// Make sure the session check doesn't nuke the session before it can be refreshed.
+		// The session check interval is assumed to be a lot shorter than the session length.
+		// Check for 2x the session check interval just to be sure.
+		if (session.expires + 2*sessionCheckInterval) < time.Now().Add(lookAhead).Unix() {
+			go refreshAccessToknes(storage, config, session)
+		}
+	}
+}
+
 func (t *GoConnect) tokenRefresher() {
 	const sleepTime = time.Second * 30
 	for {
 		time.Sleep(sleepTime)
-		t.storage.RefreshTokens(t.Config, sleepTime)
+		refreshTokens(t.storage, t.Config, sleepTime)
 	}
 }
 

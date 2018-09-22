@@ -16,15 +16,9 @@ package goconnect
 **  limitations under the License.
  */
 import (
-	"bytes"
 	"crypto/rand"
 	"encoding/hex"
-	"encoding/json"
 	"errors"
-	"log"
-	"net/http"
-	"net/url"
-	"strconv"
 	"sync"
 	"time"
 )
@@ -76,9 +70,11 @@ type Storage interface {
 	// DeleteSession removes the session
 	DeleteSession(sessionid string)
 
-	// RefreshTokens does a token refresh on all tokens that are about to
-	// expire. If the token fails to refresh the session will be invalidated.
-	RefreshTokens(config ClientConfig, lookahead time.Duration)
+	//UpdateSession updates a session in the backend store
+	UpdateSession(Session) error
+
+	// ListSessions lists all of the sessions in the backend store.
+	ListSessions() ([]Session, error)
 }
 
 // Memory-backed storage. Uses maps and lists. Naïve implementation.
@@ -145,6 +141,30 @@ func (m *memoryStorage) PutLogoutNonce(token string) error {
 
 func (m *memoryStorage) CheckLogoutNonce(token string) error {
 	return m.checkNonce(token)
+}
+
+func (m *memoryStorage) ListSessions() ([]Session, error) {
+	ret := make([]Session, 0)
+	m.mutex.Lock()
+	defer m.mutex.Unlock()
+
+	for _, v := range m.sessions {
+		ret = append(ret, v)
+	}
+	return ret, nil
+}
+
+func (m *memoryStorage) UpdateSession(updatedSession Session) error {
+	m.mutex.Lock()
+	defer m.mutex.Unlock()
+
+	_, ok := m.sessions[updatedSession.id]
+	if !ok {
+		return errors.New("unknown session id: " + updatedSession.id)
+	}
+
+	m.sessions[updatedSession.id] = updatedSession
+	return nil
 }
 
 // Session holds the session information from the CONNECT ID OAuth server.
@@ -228,69 +248,5 @@ func (m *memoryStorage) sessionChecker() {
 		}
 		m.mutex.Unlock()
 		time.Sleep(sessionCheckInterval * time.Second)
-	}
-}
-
-// Refresh the access token for a session.
-func (m *memoryStorage) refreshAccessToken(config ClientConfig, session Session) {
-	params := url.Values{}
-	params.Set("grant_type", "refresh_token")
-	params.Set("refresh_token", session.refreshToken)
-	params.Set("client_id", config.ClientID)
-	formData := params.Encode()
-
-	refreshURL := buildConnectURL(config, connectTokenPath)
-	req, err := http.NewRequest("POST", refreshURL.String(), bytes.NewBufferString(formData))
-	if err != nil {
-		log.Printf("Got error creating refresh request for session %s. Won't refresh access token: %v", session.id, err)
-		return
-	}
-	req.SetBasicAuth(config.ClientID, config.Password)
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	req.Header.Set("Content-Length", strconv.Itoa(len(formData)))
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		log.Printf("Got error doing request for session %s: %v", session.id, err)
-		return
-	}
-	if resp.StatusCode != http.StatusOK {
-		log.Printf("Got status %d doing request for session %s.", resp.StatusCode, session.id)
-		return
-	}
-	var tokens tokenResponse
-	if err := json.NewDecoder(resp.Body).Decode(&tokens); err != nil {
-		log.Printf("Got error decoding response body when refreshing session %s: %v", session.id, err)
-		return
-	}
-
-	// Invariant: Response OK and read. Update session
-	m.mutex.Lock()
-	defer m.mutex.Unlock()
-	updatedSession := Session{
-		id:            session.id,
-		accessToken:   tokens.AccessToken,
-		refreshToken:  tokens.RefreshToken,
-		expires:       time.Now().Add(time.Duration(tokens.AccessTokenExpires) * time.Second).Unix(),
-		UserID:        session.UserID,
-		Name:          session.Name,
-		Locale:        session.Locale,
-		Email:         session.Email,
-		VerifiedEmail: session.VerifiedEmail,
-		Phone:         session.Phone,
-		VerifiedPhone: session.VerifiedPhone,
-	}
-	m.sessions[updatedSession.id] = updatedSession
-}
-
-func (m *memoryStorage) RefreshTokens(config ClientConfig, lookAhead time.Duration) {
-	m.mutex.Lock()
-	defer m.mutex.Unlock()
-	for _, session := range m.sessions {
-		// Make sure the session check doesn't nuke the session before it can be refreshed.
-		// The session check interval is assumed to be a lot shorter than the session length.
-		// Check for 2x the session check interval just to be sure.
-		if (session.expires + 2*sessionCheckInterval) < time.Now().Add(lookAhead).Unix() {
-			go m.refreshAccessToken(config, session)
-		}
 	}
 }
