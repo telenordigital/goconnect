@@ -43,12 +43,19 @@ type GoConnect struct {
 	mutex    *sync.Mutex
 }
 
-// NewConnectID creates a new ConnectID client.
+// NewConnectID creates a new ConnectID client usign the default (memory-based)
+// storage.
 func NewConnectID(config ClientConfig) *GoConnect {
+	return NewConnectIDWithStorage(config, NewMemoryStorage())
+}
+
+// NewConnectIDWithStorage creates a new ConnectID client with the specified
+// storage implementation.
+func NewConnectIDWithStorage(config ClientConfig, storage Storage) *GoConnect {
 	jwkURL := buildConnectURL(config, connectJWKPath)
 	client := &GoConnect{
 		Config:   config,
-		storage:  NewMemoryStorage(),
+		storage:  storage,
 		jwkCache: newJWKCache(jwkURL.String()),
 		mutex:    &sync.Mutex{},
 	}

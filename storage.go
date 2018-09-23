@@ -149,6 +149,9 @@ func (m *memoryStorage) ListSessions() ([]Session, error) {
 	defer m.mutex.Unlock()
 
 	for _, v := range m.sessions {
+		if v.expires < time.Now().Unix() {
+			continue
+		}
 		ret = append(ret, v)
 	}
 	return ret, nil
