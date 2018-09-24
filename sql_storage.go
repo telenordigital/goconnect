@@ -14,7 +14,7 @@ import (
 var SQLSchema = []string{
 	`CREATE TABLE sessions (
 		session_id VARCHAR(128) NOT NULL,
-		session_data BYTES,
+		session_data TEXT,
 		expires BIGINT NOT NULL,
 		CONSTRAINT sessions_pk PRIMARY KEY (session_id))`,
 	"CREATE INDEX sessions_expired ON sessions(expires)",
