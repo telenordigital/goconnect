@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log"
 	"time"
 )
@@ -81,14 +82,14 @@ func NewSQLStorage(db *sql.DB) (Storage, error) {
 	// In theory the next two statements could be just a single statement
 	// but using explicit values makes the query planner happier
 	if ret.checkLoginNonce, err = db.Prepare(`
-		SELECT COUNT(*) AS count
+		SELECT nonce
 		FROM nonces
 		WHERE type = 1 AND nonce = $1 AND created > $2
 		`); err != nil {
 		return nil, err
 	}
 	if ret.checkLogoutNonce, err = db.Prepare(`
-		SELECT COUNT(*) AS count
+		SELECT nonce
 		FROM nonces
 		WHERE type = 2 AND nonce = $1 AND created > $2
 		`); err != nil {
@@ -150,24 +151,18 @@ func (s *sqlStorage) checkNonce(token string, stmt *sql.Stmt) error {
 		return err
 	}
 	expired := time.Now().Add(-20 * time.Minute).Unix()
-
 	result, err := tx.Stmt(stmt).Query(token, expired)
 	if err != nil {
 		log.Printf("Unable to retrieve nonce count: %v", err)
 		return err
 	}
-	defer result.Close()
-	result.Next()
-	count := 0
-	if err := result.Scan(&count); err != nil {
-		log.Printf("Unable to scan result of nonce count: %v", err)
-		return err
+	if !result.Next() {
+		return fmt.Errorf("Unknown nonce: \"%s\"", token)
 	}
-	if count == 0 {
-		return errors.New("Unknown nonce")
-	}
+	result.Close()
 	_, err = tx.Stmt(s.removeNonce).Exec(token)
 	if err != nil {
+		log.Printf("Unable to remove nonce %s: %v", token, err)
 		tx.Rollback()
 		return err
 	}
@@ -181,7 +176,7 @@ func (s *sqlStorage) CheckLoginNonce(token string) error {
 
 func (s *sqlStorage) PutLogoutNonce(token string) error {
 	if _, err := s.insertNonce.Exec(token, time.Now().Unix(), 2); err != nil {
-		log.Printf("Unable to insert ")
+		log.Printf("Unable to insert nonce: %v", err)
 		return err
 	}
 	return nil
