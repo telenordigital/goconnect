@@ -74,9 +74,7 @@ func NewSQLStorage(db *sql.DB) (Storage, error) {
 		`); err != nil {
 		return nil, err
 	}
-	if ret.removeNonce, err = db.Prepare(`
-		DELETE FROM nonces WHERE nonce = $1
-		`); err != nil {
+	if ret.removeNonce, err = db.Prepare(`DELETE FROM nonces WHERE nonce = $1`); err != nil {
 		return nil, err
 	}
 	// In theory the next two statements could be just a single statement
@@ -146,12 +144,8 @@ func (s *sqlStorage) PutLoginNonce(token string) error {
 }
 
 func (s *sqlStorage) checkNonce(token string, stmt *sql.Stmt) error {
-	tx, err := s.db.Begin()
-	if err != nil {
-		return err
-	}
 	expired := time.Now().Add(-20 * time.Minute).Unix()
-	result, err := tx.Stmt(stmt).Query(token, expired)
+	result, err := stmt.Query(token, expired)
 	if err != nil {
 		log.Printf("Unable to retrieve nonce count: %v", err)
 		return err
@@ -160,16 +154,14 @@ func (s *sqlStorage) checkNonce(token string, stmt *sql.Stmt) error {
 	if !result.Next() {
 		return fmt.Errorf("Unknown nonce: \"%s\"", token)
 	}
-	_, err = tx.Stmt(s.removeNonce).Exec(token)
+	_, err = s.removeNonce.Exec(token)
 	if err != nil {
 		log.Printf("Unable to remove nonce %s: %v", token, err)
-		tx.Rollback()
 		return err
 	}
-	tx.Commit()
 	return nil
-
 }
+
 func (s *sqlStorage) CheckLoginNonce(token string) error {
 	return s.checkNonce(token, s.checkLoginNonce)
 }
