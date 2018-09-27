@@ -156,10 +156,10 @@ func (s *sqlStorage) checkNonce(token string, stmt *sql.Stmt) error {
 		log.Printf("Unable to retrieve nonce count: %v", err)
 		return err
 	}
+	defer result.Close()
 	if !result.Next() {
 		return fmt.Errorf("Unknown nonce: \"%s\"", token)
 	}
-	result.Close()
 	_, err = tx.Stmt(s.removeNonce).Exec(token)
 	if err != nil {
 		log.Printf("Unable to remove nonce %s: %v", token, err)
@@ -203,8 +203,9 @@ func (s *sqlStorage) GetSession(sessionid string) (Session, error) {
 	ret := Session{}
 	if err != nil {
 		log.Printf("Unable to query for session %s: %v", sessionid, err)
-		// return ret, err
+		return ret, err
 	}
+	defer result.Close()
 	if result.Next() {
 		var data []byte
 		var sessionID string
