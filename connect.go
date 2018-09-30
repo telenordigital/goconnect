@@ -69,7 +69,6 @@ func refreshAccessToknes(storage Storage, config ClientConfig, session Session) 
 	params.Set("refresh_token", session.refreshToken)
 	params.Set("client_id", config.ClientID)
 	formData := params.Encode()
-
 	refreshURL := buildConnectURL(config, connectTokenPath)
 	req, err := http.NewRequest("POST", refreshURL.String(), bytes.NewBufferString(formData))
 	if err != nil {
@@ -79,6 +78,7 @@ func refreshAccessToknes(storage Storage, config ClientConfig, session Session) 
 	req.SetBasicAuth(config.ClientID, config.Password)
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	req.Header.Set("Content-Length", strconv.Itoa(len(formData)))
+	req.Header.Set("Accept", "application/json")
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		log.Printf("Got error doing request for session %s: %v", session.id, err)
@@ -95,11 +95,12 @@ func refreshAccessToknes(storage Storage, config ClientConfig, session Session) 
 	}
 
 	// Invariant: Response OK and read. Update session
+	expires := time.Now().Unix() + int64(tokens.AccessTokenExpires)
 	updatedSession := Session{
 		id:            session.id,
 		accessToken:   tokens.AccessToken,
 		refreshToken:  tokens.RefreshToken,
-		expires:       time.Now().Add(time.Duration(tokens.AccessTokenExpires) * time.Second).Unix(),
+		expires:       expires, // ,
 		UserID:        session.UserID,
 		Name:          session.Name,
 		Locale:        session.Locale,
@@ -113,27 +114,35 @@ func refreshAccessToknes(storage Storage, config ClientConfig, session Session) 
 	}
 }
 
-func refreshTokens(storage Storage, config ClientConfig, lookAhead time.Duration) {
+func refreshTokens(storage Storage, config ClientConfig, lookAheadSeconds int) {
 	list, err := storage.ListSessions()
 	if err != nil {
 		log.Printf("Unable to list sessions: %v. Sessions won't be updated.", err)
 		return
 	}
 	for _, session := range list {
-		// Make sure the session check doesn't nuke the session before it can be refreshed.
-		// The session check interval is assumed to be a lot shorter than the session length.
-		// Check for 2x the session check interval just to be sure.
-		if (session.expires + 2*sessionCheckInterval) < time.Now().Add(lookAhead).Unix() {
-			go refreshAccessToknes(storage, config, session)
+		timeToExpire := session.expires - time.Now().Unix()
+		if timeToExpire < (int64(lookAheadSeconds) * 2) {
+			// Make sure the session check doesn't nuke the session before it can be refreshed.
+			// The session check interval is assumed to be a lot shorter than the session length.
+			// Check for 2x the session check interval just to be sure.
+			refreshAccessToknes(storage, config, session)
+		}
+		if timeToExpire < 0 {
+			log.Printf("Removing session %s from storage -- expired at %d", session.id, session.expires)
+			storage.DeleteSession(session.id)
 		}
 	}
 }
 
+const sessionRefreshInterval = 30
+
 func (t *GoConnect) tokenRefresher() {
-	const sleepTime = time.Second * 30
+	const sleepTime = time.Second * sessionRefreshInterval
 	for {
 		time.Sleep(sleepTime)
-		refreshTokens(t.storage, t.Config, sleepTime)
+		refreshTokens(t.storage, t.Config, sessionRefreshInterval)
+		t.storage.RemoveExpiredNonces()
 	}
 }
 
@@ -230,7 +239,7 @@ func (t *GoConnect) loginComplete(w http.ResponseWriter, r *http.Request) {
 
 	// Verify that state is sent previously
 	if err := t.storage.CheckLoginNonce(state); err != nil {
-		http.Error(w, "Unknown state token.", http.StatusBadRequest)
+		http.Error(w, "Unknown state token. Your login session might have timed out.", http.StatusBadRequest)
 		return
 	}
 

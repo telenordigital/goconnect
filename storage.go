@@ -38,7 +38,7 @@ var (
 )
 
 // This is the default nonce timeout.
-const nonceTimeout time.Duration = 5 * time.Minute
+const nonceTimeoutSeconds = 300
 
 // Storage is the session and nonce storage used by the go-connectid client.
 // The default session and nonce storage is memory-based. It works perfectly fine
@@ -75,6 +75,9 @@ type Storage interface {
 
 	// ListSessions lists all of the sessions in the backend store.
 	ListSessions() ([]Session, error)
+
+	// RemoveExpiredNonces removes all of the expired nonces from the store
+	RemoveExpiredNonces()
 }
 
 // Memory-backed storage. Uses maps and lists. Naïve implementation.
@@ -95,7 +98,6 @@ func NewMemoryStorage() Storage {
 		nonces:   make(map[string]time.Time),
 		sessions: make(map[string]Session),
 	}
-	go storage.sessionChecker()
 	return storage
 }
 
@@ -107,7 +109,7 @@ func (m *memoryStorage) putNonce(token string) error {
 	if exists {
 		return errorNonceExists
 	}
-	m.nonces[token] = time.Now().Add(nonceTimeout)
+	m.nonces[token] = time.Now().Add(time.Duration(nonceTimeoutSeconds) * time.Second)
 	return nil
 }
 
@@ -231,25 +233,12 @@ func (m *memoryStorage) DeleteSession(sessionID string) {
 	delete(m.sessions, sessionID)
 }
 
-const sessionCheckInterval = 10
-
-// The session checker checks if the access token is about to expire and if it is
-// the refresh token will be used to create a new. If the operation fails the session
-// will be removed.
-func (m *memoryStorage) sessionChecker() {
-	for {
-		m.mutex.Lock()
-		for sessionID, v := range m.sessions {
-			if v.expires < time.Now().Unix() {
-				delete(m.sessions, sessionID)
-			}
+func (m *memoryStorage) RemoveExpiredNonces() {
+	m.mutex.Lock()
+	defer m.mutex.Unlock()
+	for nonce, expires := range m.nonces {
+		if time.Now().After(expires) {
+			delete(m.nonces, nonce)
 		}
-		for nonce, expires := range m.nonces {
-			if time.Now().After(expires) {
-				delete(m.nonces, nonce)
-			}
-		}
-		m.mutex.Unlock()
-		time.Sleep(sessionCheckInterval * time.Second)
 	}
 }

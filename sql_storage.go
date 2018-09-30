@@ -44,6 +44,7 @@ type sqlStorage struct {
 	retrieveSession      *sql.Stmt
 	removeSession        *sql.Stmt
 	listSessions         *sql.Stmt
+	expireNonces         *sql.Stmt
 }
 
 // NewSQLStorage creates a new SQL-backed storage
@@ -109,8 +110,13 @@ func NewSQLStorage(db *sql.DB) (Storage, error) {
 		return nil, err
 	}
 	if ret.listSessions, err = db.Prepare(`
-		SELECT session_id, expires, session_data FROM sessions WHERE expires > $1
+		SELECT session_id, expires, session_data FROM sessions
 		`); err != nil {
+		return nil, err
+	}
+	if ret.expireNonces, err = db.Prepare(`
+		DELETE from nonces WHERE created < $1
+	`); err != nil {
 		return nil, err
 	}
 	return &ret, nil
@@ -178,8 +184,38 @@ func (s *sqlStorage) CheckLogoutNonce(token string) error {
 	return s.checkNonce(token, s.checkLogoutNonce)
 }
 
+// Use a custom session struct to include the private fields in the
+// exported struct
+type dbSession struct {
+	ID           string `json:"sessionID"`
+	AccessToken  string `json:"accessToken"`
+	RefreshToken string `json:"refreshToken"`
+	Expires      int64  `json:"expires"`
+
+	Session Session `json:"session"`
+}
+
+func dbSessionFromSession(sess Session) dbSession {
+	return dbSession{
+		ID:           sess.id,
+		AccessToken:  sess.accessToken,
+		RefreshToken: sess.refreshToken,
+		Expires:      sess.expires,
+		Session:      sess}
+}
+
+func sessionFromDBSession(db dbSession) Session {
+	ret := db.Session
+	ret.id = db.ID
+	ret.accessToken = db.AccessToken
+	ret.refreshToken = db.RefreshToken
+	ret.expires = db.Expires
+	return ret
+}
+
 func (s *sqlStorage) PutSession(session Session) error {
-	data, err := json.Marshal(&session)
+	dbs := dbSessionFromSession(session)
+	data, err := json.Marshal(&dbs)
 	if err != nil {
 		return err
 	}
@@ -192,10 +228,9 @@ func (s *sqlStorage) PutSession(session Session) error {
 
 func (s *sqlStorage) GetSession(sessionid string) (Session, error) {
 	result, err := s.retrieveSession.Query(sessionid, time.Now().Unix())
-	ret := Session{}
 	if err != nil {
 		log.Printf("Unable to query for session %s: %v", sessionid, err)
-		return ret, err
+		return Session{}, err
 	}
 	defer result.Close()
 	if result.Next() {
@@ -204,14 +239,15 @@ func (s *sqlStorage) GetSession(sessionid string) (Session, error) {
 		var expires int64
 		if err := result.Scan(&sessionID, &expires, &data); err != nil {
 			log.Printf("Unable to read session %s rom db: %v", sessionid, err)
-			return ret, err
+			return Session{}, err
 		}
-		err = json.Unmarshal(data, &ret)
-		ret.id = sessionID
-		ret.expires = expires
-		return ret, nil
+		dbs := dbSession{}
+		if err = json.Unmarshal(data, &dbs); err != nil {
+			return Session{}, err
+		}
+		return sessionFromDBSession(dbs), nil
 	}
-	return ret, errorNoSession
+	return Session{}, errorNoSession
 }
 
 func (s *sqlStorage) DeleteSession(sessionid string) {
@@ -221,7 +257,8 @@ func (s *sqlStorage) DeleteSession(sessionid string) {
 }
 
 func (s *sqlStorage) UpdateSession(session Session) error {
-	data, err := json.Marshal(&session)
+	dbs := dbSessionFromSession(session)
+	data, err := json.Marshal(&dbs)
 	if err != nil {
 		return err
 	}
@@ -231,8 +268,7 @@ func (s *sqlStorage) UpdateSession(session Session) error {
 
 func (s *sqlStorage) ListSessions() ([]Session, error) {
 	ret := make([]Session, 0)
-	expires := time.Now().Unix()
-	result, err := s.listSessions.Query(expires)
+	result, err := s.listSessions.Query()
 	if err != nil {
 		return ret, err
 	}
@@ -246,11 +282,9 @@ func (s *sqlStorage) ListSessions() ([]Session, error) {
 			log.Printf("Unable to scan result: %v", err)
 			return ret, err
 		}
-		newSession := Session{}
-		json.Unmarshal(data, &newSession)
-		newSession.id = sessionID
-		newSession.expires = expires
-		ret = append(ret, newSession)
+		dbs := dbSession{}
+		json.Unmarshal(data, &dbs)
+		ret = append(ret, sessionFromDBSession(dbs))
 	}
 	return ret, nil
 }
@@ -263,4 +297,11 @@ func SQLStorePrepare(db *sql.DB) error {
 		}
 	}
 	return nil
+}
+
+func (s *sqlStorage) RemoveExpiredNonces() {
+	expires := time.Now().Unix() - nonceTimeoutSeconds
+	if _, err := s.expireNonces.Exec(expires); err != nil {
+		log.Printf("Unable to expired nonces: %v", err)
+	}
 }
