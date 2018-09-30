@@ -272,6 +272,7 @@ func (t *GoConnect) loginComplete(w http.ResponseWriter, r *http.Request) {
 	cookie := &http.Cookie{
 		Name:     connectIDCookieName,
 		Value:    session.id,
+		Expires:  time.Now().Add(48 * time.Hour),
 		HttpOnly: true,
 		Path:     "/",
 	}
