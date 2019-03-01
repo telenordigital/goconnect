@@ -13,19 +13,19 @@ import (
 // on both SQLite and PostgreSQL. They must be executed in the order they are
 // returned.
 var SQLSchema = []string{
-	`CREATE TABLE sessions (
+	`CREATE TABLE IF NOT EXISTS sessions (
 		session_id VARCHAR(128) NOT NULL,
 		session_data TEXT,
 		expires BIGINT NOT NULL,
 		CONSTRAINT sessions_pk PRIMARY KEY (session_id))`,
-	"CREATE INDEX sessions_expired ON sessions(expires)",
-	`CREATE TABLE nonces (
+	"CREATE INDEX IF NOT EXISTS sessions_expired ON sessions(expires)",
+	`CREATE TABLE IF NOT EXISTS nonces (
 		nonce VARCHAR(128) NOT NULL,
 		created BIGINT NOT NULL,
 		type SMALLINT NOT NULL,
 		CONSTRAINT nonces_pk PRIMARY KEY (nonce))`,
-	"CREATE INDEX nonces_created ON nonces(created)",
-	"CREATE INDEX nonces_type ON nonces(type)",
+	"CREATE INDEX IF NOT EXISTS nonces_created ON nonces(created)",
+	"CREATE INDEX IF NOT EXISTS nonces_type ON nonces(type)",
 }
 
 // Interval between nonce and session cleanups
