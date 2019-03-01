@@ -411,3 +411,15 @@ func (c *connectHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 func (t *GoConnect) Handler() http.Handler {
 	return &connectHandler{connect: t}
 }
+
+// HasSessionCookie returns true if the request contains a CONNECT ID session cookie
+func HasSessionCookie(r *http.Request) bool {
+	cookie, err := r.Cookie(connectIDCookieName)
+	if err != nil {
+		return false
+	}
+	if cookie == nil {
+		return false
+	}
+	return true
+}
